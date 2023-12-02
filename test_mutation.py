@@ -19,11 +19,13 @@ times_of_simulation = 10000
 mutation_range_k = [1000, 1200]
 mutation_range_b = [0.2, 0.3]
 mutation_range_c = [0, 2*np.pi*0.1]
-mutation_probability = 0.2
+mass_mutation_probability = 0.5
+spring_mutation_probability = 0.2
 crossover_probability = 0.5
 population_size = 2
 generations = 2
 new_mass_spring_num = 5
+mass_to_mutate = 3
 
 class Mass:
     def __init__(self, p, v, m=0.1):
@@ -236,16 +238,46 @@ def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
             mass.p[2] = 0
             mass.v[2] = -damping * mass.v[2]  # Some damping on collision
 
+def mutation(individual):
+    for i in range(0, mass_to_mutate):
+        if random.random() < mass_mutation_probability:
+            add_random_mass(individual)
+        if random.random() < mass_mutation_probability:
+            remove_random_mass(individual)
 
-# Visualization setup
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+    b_dict = individual.b_dict
+    c_dict = individual.c_dict
+    k_dict = individual.k_dict
+    for spring in individual.springs:
+        if random.random() < spring_mutation_probability:
+            b_dict[spring] = np.random.uniform(mutation_range_b[0], mutation_range_b[1])
+            c_dict[spring] = np.random.uniform(mutation_range_c[0], mutation_range_c[1])
+            k_dict[spring] = np.random.uniform(mutation_range_k[0], mutation_range_k[1])
+    individual.set_b_dict(b_dict)
+    individual.set_c_dict(c_dict)
+    individual.set_k_dict(k_dict)
+    return individual
+
+def crossover(individual1, individual2):
+    # Crossover the two individuals
+    b_dict1 = individual1.b_dict
+    c_dict1 = individual1.c_dict
+    k_dict1 = individual1.k_dict
+    b_dict2 = individual2.b_dict
+    c_dict2 = individual2.c_dict
+    k_dict2 = individual2.k_dict
+    for spring in individual1.springs:
+        if random.random() < crossover_probability:
+            b_dict1[spring] = b_dict2[spring]
+            c_dict1[spring] = c_dict2[spring]
+            k_dict1[spring] = k_dict2[spring]
+    individual1.set_b_dict(b_dict1)
+    individual1.set_c_dict(c_dict1)
+    individual1.set_k_dict(k_dict1)
+    return individual1
 
 I = Individual()
-add_random_mass(I)
-remove_random_mass(I)
 
-# reset all spring parameters
 b_dict = {}
 c_dict = {}
 k_dict = {}
@@ -259,12 +291,18 @@ I.set_b_dict(b_dict)
 I.set_c_dict(c_dict)
 I.set_k_dict(k_dict)
 
+I = mutation(I)
+
 masses = I.masses
 springs = I.springs
 a_dict = I.a_dict
 b_dict = I.b_dict
 c_dict = I.c_dict
 k_dict = I.k_dict
+
+# Visualization setup
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
 
 # Initialize 8 points for the cube's vertices
 points = [ax.plot([], [], [], 'ro')[0] for _ in range(len(masses))]
