@@ -172,22 +172,6 @@ def remove_random_mass(individual):
     mass = random.choice(individual.masses)
     individual.remove_mass(mass)
 
-'''
-def get_cube_faces(masses):
-    return [
-        [masses[0].p, masses[1].p, masses[5].p, masses[4].p],  # Bottom face
-        [masses[2].p, masses[3].p, masses[7].p, masses[6].p],  # Top face
-        [masses[0].p, masses[1].p, masses[3].p, masses[2].p],  # Front face
-        [masses[0].p, masses[4].p, masses[6].p, masses[2].p],  # Left face
-        [masses[1].p, masses[5].p, masses[7].p, masses[3].p],   # Right face
-        [masses[6].p, masses[7].p, masses[11].p, masses[10].p],
-        [masses[7].p, masses[11].p, masses[9].p, masses[5].p],
-        [masses[5].p, masses[9].p, masses[8].p, masses[4].p],
-        [masses[4].p, masses[8].p, masses[10].p, masses[6].p],
-        [masses[9].p, masses[11].p, masses[10].p, masses[8].p],
-        [masses[6].p, masses[7].p, masses[5].p, masses[4].p]
-    ]
-'''
 def get_floor_tile():
     floor_size = 2.5
     return [[-floor_size, -floor_size, 0], 
@@ -274,9 +258,6 @@ points = [ax.plot([], [], [], 'ro')[0] for _ in range(len(masses))]
 lines = [ax.plot([], [], [], 'b-')[0] for _ in range(len(springs))] 
 shadows = [ax.plot([], [], [], 'k-')[0] for _ in range(len(springs))] 
 
-#cube_faces_collection = Poly3DCollection(get_cube_faces(masses), color='cyan', alpha=0.3)
-#ax.add_collection3d(cube_faces_collection)
-
 floor_tile_collection = Poly3DCollection([get_floor_tile()], color='gray', alpha=0.5)
 ax.add_collection3d(floor_tile_collection)
 
@@ -325,9 +306,6 @@ def animate(i):
         shadow.set_data(x_data, y_data)
         shadow.set_3d_properties(z_data)
         
-    # Update the cube faces
-    #cube_faces_collection.set_verts(get_cube_faces(masses))
-
     return points + lines + shadows
 
 ani = animation.FuncAnimation(fig, animate, frames=1000, init_func=init, blit=False, interval=5)
