@@ -6,6 +6,7 @@ import matplotlib.animation as animation
 import pickle
 
 # Constants
+visualization_diameter = 3
 g = np.array([0.0, 0.0, -9.81])  # Gravity
 dt = 0.0001
 k = 1000.0  # Spring constant
@@ -179,7 +180,7 @@ def remove_random_mass(individual):
     individual.remove_mass(mass)
 
 def get_floor_tile():
-    floor_size = 3
+    floor_size = visualization_diameter + 0.5
     return [[-floor_size, -floor_size, 0], 
             [floor_size, -floor_size, 0], 
             [floor_size, floor_size, 0], 
@@ -252,7 +253,20 @@ b_dict = I.b_dict
 c_dict = I.c_dict
 k_dict = I.k_dict
 
-print("a_dict: ", a_dict)
+'''
+springs_to_remove = []
+for spring in springs:
+    if spring.m1 not in masses or spring.m2 not in masses:
+        springs_to_remove.append(spring)
+
+print("# of springs to removing: ", len(springs_to_remove))
+for spring in springs_to_remove:
+    springs.remove(spring)
+    del a_dict[spring]
+    del b_dict[spring]
+    del c_dict[spring]
+    del k_dict[spring]
+'''
 # Visualization setup
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
@@ -267,9 +281,9 @@ shadows = [ax.plot([], [], [], 'k-')[0] for _ in range(len(springs))]
 floor_tile_collection = Poly3DCollection([get_floor_tile()], color='gray', alpha=0.5)
 ax.add_collection3d(floor_tile_collection)
 
-ax.set_xlim([-3, 3]) 
-ax.set_ylim([-3, 3])
-ax.set_zlim([0, 6])
+ax.set_xlim([-visualization_diameter, visualization_diameter]) 
+ax.set_ylim([-visualization_diameter, visualization_diameter])
+ax.set_zlim([0, 2*visualization_diameter])
 ax.set_xlabel('X')
 ax.set_ylabel('Y')  
 ax.set_zlabel('Z')

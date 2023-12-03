@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.animation as animation
 import pickle
-import copy
 
 # Constants
+visualization_diameter = 3
 g = np.array([0.0, 0.0, -9.81])  # Gravity
 dt = 0.0001
 k = 1000.0  # Spring constant
@@ -15,17 +15,17 @@ damping = 0.75  # Damping constant
 mu_s = 1.0  # Static friction coefficient
 mu_k = 0.8  # Kinetic friction coefficient
 half_L0 = L0/2
-drop_height = 2.0
+drop_height = 3.0
 omega = 2*np.pi*2 # frequency of breathing
 times_of_simulation = 10000
 mutation_range_k = [1000, 1200]
-mutation_range_b = [0.05, 0.075]
+mutation_range_b = [0.2, 0.3]
 mutation_range_c = [0, 2*np.pi*0.1]
-mass_mutation_probability = 0.2
+mass_mutation_probability = 0.5
 spring_mutation_probability = 0.2
 cross_over_removal_rate = 0.5
-population_size = 10
-generations = 15
+population_size = 2
+generations = 2
 new_mass_spring_num = 5
 mass_to_mutate = 3
 
@@ -164,30 +164,11 @@ class Individual:
         for spring in springs_to_remove:
             self.remove_spring(spring)
 
-    def get_fitness(self):
-        individual = copy.deepcopy(self)
-        masses = individual.masses
-        springs = individual.springs
-        initial_center_of_mass = p_center_of_mass(masses)
-        t = 0
-        for _ in range(times_of_simulation):
-            simulation_step(masses, springs, t, individual.a_dict, individual.b_dict, individual.c_dict, individual.k_dict)
-            t += dt
-        final_center_of_mass = p_center_of_mass(masses)
-        displacement = final_center_of_mass - initial_center_of_mass
-        speed = np.linalg.norm(displacement[:2]) / (times_of_simulation * dt) # only care about horizontal distance
-        return speed
-    
 def add_random_mass(individual):
     # Add a random mass to the individual
-    mass_p = np.random.rand(3) * 1.5
-    new_mass = Mass(mass_p, np.zeros(3,dtype=float))
-    print("Random mass position: ", mass_p)
+    new_mass = Mass(np.random.rand(3), np.random.rand(3))
     individual.add_mass(new_mass)
-    if len(individual.masses) >= new_mass_spring_num:
-        random_masses = random.sample(individual.masses, new_mass_spring_num)
-    else:
-        random_masses = individual.masses
+    random_masses = random.sample(individual.masses, new_mass_spring_num)
     for mass in random_masses:
         distance = np.linalg.norm(new_mass.p - mass.p)
         new_spring = Spring(distance, k, new_mass, mass)
@@ -195,18 +176,21 @@ def add_random_mass(individual):
 
 def remove_random_mass(individual):
     # Remove a random spring from the individual
-    if len(individual.masses) > 0:
-        mass = random.choice(individual.masses)
-        individual.remove_mass(mass)
+    mass = random.choice(individual.masses)
+    individual.remove_mass(mass)
 
 def get_floor_tile():
-    floor_size = 2.5
+    floor_size = visualization_diameter + 0.5
     return [[-floor_size, -floor_size, 0], 
             [floor_size, -floor_size, 0], 
             [floor_size, floor_size, 0], 
             [-floor_size, floor_size, 0]]
 
-def simulation_step(masses, springs, t, a_dict, b_dict, c_dict, k_dict):
+t = 0
+def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
+    global t
+    t += dt
+
     # Reset forces on each mass
     for mass in masses:
         mass.f = np.zeros(3, dtype=float)
@@ -243,8 +227,10 @@ def simulation_step(masses, springs, t, a_dict, b_dict, c_dict, k_dict):
         if F_n < 0:
             if F_H<=-mu_s*F_n:
                 mass.f[:2] = np.zeros(2)
+                print("static friction, ", mass.f)
             else:
                 mass.f[:2] += -abs(mu_k*F_n)*direction
+                print("kinetic friction, ", mass.f)
 
     # Update positions and velocities for each mass
     for mass in masses:
@@ -257,190 +243,94 @@ def simulation_step(masses, springs, t, a_dict, b_dict, c_dict, k_dict):
             mass.p[2] = 0
             mass.v[2] = -damping * mass.v[2]  # Some damping on collision
 
-def mutation(individual,mass_mutation_probability,spring_mutation_probability):
-    for i in range(0, mass_to_mutate):
-        if random.random() < mass_mutation_probability:
-            add_random_mass(individual)
-        if random.random() < mass_mutation_probability:
-            remove_random_mass(individual)
+with open("best_individual.pkl", "rb") as f:
+    I = pickle.load(f)
 
-    b_dict = individual.b_dict
-    c_dict = individual.c_dict
-    k_dict = individual.k_dict
-    for spring in individual.springs:
-        if random.random() < spring_mutation_probability:
-            b_dict[spring] = np.random.uniform(mutation_range_b[0], mutation_range_b[1])
-            c_dict[spring] = np.random.uniform(mutation_range_c[0], mutation_range_c[1])
-            k_dict[spring] = np.random.uniform(mutation_range_k[0], mutation_range_k[1])
-    individual.set_b_dict(b_dict)
-    individual.set_c_dict(c_dict)
-    individual.set_k_dict(k_dict)
-    return individual
+I2 = Individual()
 
-def crossover(individual1, individual2):
-    # Combine masses and springs from both individuals
-    combined_masses = individual1.masses + individual2.masses
-    combined_springs = individual1.springs + individual2.springs
-    combined_a_dict = {**individual1.a_dict, **individual2.a_dict}
-    combined_b_dict = {**individual1.b_dict, **individual2.b_dict}
-    combined_c_dict = {**individual1.c_dict, **individual2.c_dict}
-    combined_k_dict = {**individual1.k_dict, **individual2.k_dict}
+# Apply an offset to the position of all masses in the second robot
+offset_x = 2  # Adjust this value as needed
+for mass in I2.masses:
+    mass.p[0] += offset_x
+    mass.p[1] += offset_x
 
-    unique_masses = remove_duplicate_masses(combined_masses)
+all_masses = I.masses + I2.masses
+all_springs = I.springs + I2.springs
+all_a_dict = {**I.a_dict, **I2.a_dict}
+all_b_dict = {**I.b_dict, **I2.b_dict}
+all_c_dict = {**I.c_dict, **I2.c_dict}
+all_k_dict = {**I.k_dict, **I2.k_dict}
+'''
+springs_to_remove = []
+for spring in springs:
+    if spring.m1 not in masses or spring.m2 not in masses:
+        springs_to_remove.append(spring)
 
-    # Create a new individual with the combined and filtered attributes
-    new_individual = Individual()
-    new_individual.masses = unique_masses
+print("# of springs to removing: ", len(springs_to_remove))
+for spring in springs_to_remove:
+    springs.remove(spring)
+    del a_dict[spring]
+    del b_dict[spring]
+    del c_dict[spring]
+    del k_dict[spring]
+'''
+# Visualization setup
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+points = [ax.plot([], [], [], 'ro')[0] for _ in range(len(all_masses))]
+lines = [ax.plot([], [], [], 'b-')[0] for _ in range(len(all_springs))]
+shadows = [ax.plot([], [], [], 'k-')[0] for _ in range(len(all_springs))]
+
+floor_tile_collection = Poly3DCollection([get_floor_tile()], color='gray', alpha=0.5)
+ax.add_collection3d(floor_tile_collection)
+
+ax.set_xlim([-visualization_diameter, visualization_diameter]) 
+ax.set_ylim([-visualization_diameter, visualization_diameter])
+ax.set_zlim([0, 2*visualization_diameter])
+ax.set_xlabel('X')
+ax.set_ylabel('Y')  
+ax.set_zlabel('Z')
+ax.set_title('Fastest Robot Moving')
+
+def init():
+    for point in points:
+        point.set_data([], [])
+        point.set_3d_properties([])
+    for line in lines:
+        line.set_data([], [])
+        line.set_3d_properties([])
+    for shadow in shadows:
+        shadow.set_data([], [])
+        shadow.set_3d_properties([])
+    return points + lines + shadows
+
+def animate(i):
+    for _ in range(300):
+        simulation_step(all_masses, all_springs, dt, all_a_dict, all_b_dict, all_c_dict, all_k_dict)
     
-    new_springs = []
-    # add all springs that have both masses in the new individual
-    for spring in combined_springs:
-        for mass in unique_masses:
-            if np.array_equal(spring.m1.p, mass.p) or np.array_equal(spring.m2.p, mass.p):
-                new_springs.append(spring)
-                break
+    # Update the points and lines for both robots
+    for mass, point in zip(all_masses, points):
+        x, y, z = mass.p
+        point.set_data([x], [y])
+        point.set_3d_properties([z])  # Setting the Z value for 3D
 
-    # remove springs with duplicated starting and ending mass locations
-    positions = set()
-    unique_springs = []
-    for spring in new_springs:
-        pos_tuple = tuple(tuple(mass.p) for mass in [spring.m1, spring.m2])
-        if pos_tuple not in positions:
-            positions.add(pos_tuple)
-            unique_springs.append(spring)
+    for spring, line in zip(all_springs, lines):
+        x_data = [spring.m1.p[0], spring.m2.p[0]]
+        y_data = [spring.m1.p[1], spring.m2.p[1]]
+        z_data = [spring.m1.p[2], spring.m2.p[2]]
+        line.set_data(x_data, y_data)
+        line.set_3d_properties(z_data)
 
-    for spring in unique_springs:
-        if spring.m1 not in unique_masses:
-            for mass in unique_masses:
-                if np.array_equal(spring.m1.p, mass.p):
-                    spring.m1 = mass
-                    break
-        if spring.m2 not in unique_masses:
-            for mass in unique_masses:
-                if np.array_equal(spring.m2.p, mass.p):
-                    spring.m2 = mass
-                    break
-
-    new_individual.springs = unique_springs
-    new_a_dict = {}
-    new_b_dict = {}
-    new_c_dict = {}
-    new_k_dict = {}
-    for spring in unique_springs:
-        new_a_dict[spring] = combined_a_dict[spring]
-        new_b_dict[spring] = combined_b_dict[spring]
-        new_c_dict[spring] = combined_c_dict[spring]
-        new_k_dict[spring] = combined_k_dict[spring]
-    new_individual.set_a_dict(new_a_dict)
-    new_individual.set_b_dict(new_b_dict)
-    new_individual.set_c_dict(new_c_dict)
-    new_individual.set_k_dict(new_k_dict)
-
-    # randomly remove 50% of the masses
-    for mass in unique_masses:
-        if random.random() < cross_over_removal_rate:
-            new_individual.remove_mass(mass)
-    return new_individual
-
-def remove_duplicate_masses(masses):
-    unique_masses = []
-    positions = set()
-    for mass in masses:
-        pos_tuple = tuple(mass.p)
-        if pos_tuple not in positions:
-            positions.add(pos_tuple)
-            unique_masses.append(mass)
-    return unique_masses
-
-def find_mass(ref_mass, mass_list):
-    # Helper function to find a matching mass in the new list by position
-    for mass in mass_list:
-        if np.array_equal(ref_mass.p, mass.p):
-            return mass
-    return None
-
-population = [Individual() for _ in range(population_size)]
-
-for individual in population:
-    b_dict = {}
-    c_dict = {}
-    k_dict = {}
-
-    for spring in individual.springs:
-        b_dict[spring] = np.random.uniform(mutation_range_b[0], mutation_range_b[1])
-        c_dict[spring] = np.random.uniform(mutation_range_c[0], mutation_range_c[1])
-        k_dict[spring] = np.random.uniform(mutation_range_k[0], mutation_range_k[1])
-
-    individual.set_b_dict(b_dict)
-    individual.set_c_dict(c_dict)
-    individual.set_k_dict(k_dict)
-
-for individual in population:
-    mutation(individual, 0.5, 0.5)
-
-def p_center_of_mass(masses):
-    return sum([mass.m * mass.p for mass in masses]) / sum([mass.m for mass in masses]) +0.000001
-
-fitness_history = []
-fitnesses = [individual.get_fitness() for individual in population]
-max_fitness = max(fitnesses)
-fitness_history.append(max_fitness)
-best_individual = population[fitnesses.index(max_fitness)]
-
-with open("dot_plot_data.txt", "w") as f:
-    f.write("")
-
-for i in range(generations):
-    # select parents
-    children = []
-    while len(children) < population_size:
-        parent1 = random.choices(population, weights=fitnesses)[0]
-        parent2 = random.choices(population, weights=fitnesses)[0]
-
-        parent1 = mutation(parent1, mass_mutation_probability, spring_mutation_probability)
-        parent2 = mutation(parent2, mass_mutation_probability, spring_mutation_probability)
-
-        child = crossover(parent1, parent2)
-        child = mutation(child, mass_mutation_probability, spring_mutation_probability)
+    for spring, shadow in zip(all_springs, shadows):
+        x_data = [spring.m1.p[0], spring.m2.p[0]]
+        y_data = [spring.m1.p[1], spring.m2.p[1]]
+        z_data = [0, 0]
+        shadow.set_data(x_data, y_data)
+        shadow.set_3d_properties(z_data)
         
-        springs_to_remove = []
-        for spring in child.springs:
-            if spring.m1 not in child.masses or spring.m2 not in child.masses:
-                springs_to_remove.append(spring)
+    return points + lines + shadows
 
-        print("# of springs to removing: ", len(springs_to_remove))
-        for spring in springs_to_remove:
-            child.springs.remove(spring)
-            del child.a_dict[spring]
-            del child.b_dict[spring]
-            del child.c_dict[spring]
-            del child.k_dict[spring]
-        children.append(child)
-    
-    population = children
-    
-    #checking the position of every mass
-    for individual in population:
-        for mass in individual.masses:
-            print("Mass position", mass.p)
-            
-    # evaluate fitness
-    fitnesses = [individual.get_fitness() for individual in population]
-    current_max_fitness = max(fitnesses)
-    current_best_individual = population[fitnesses.index(current_max_fitness)]
-    if current_max_fitness > max_fitness:
-        max_fitness = current_max_fitness
-        best_individual = current_best_individual
-    fitness_history.append(max_fitness)
-    print("Generation ", i, " fitnesses: ", fitnesses)
-    with open("dot_plot_data.txt", "a") as f:
-        f.write(str(fitnesses) + "\n")
+ani = animation.FuncAnimation(fig, animate, frames=1000, init_func=init, blit=False, interval=5)
 
-print("Best individual: ", best_individual)
-print("Best fitness: ", max_fitness)
-
-with open("fitness_history.pkl", "wb") as f:
-    pickle.dump(fitness_history, f)
-
-with open("best_individual.pkl", "wb") as f:
-    pickle.dump(best_individual, f)
+plt.show()

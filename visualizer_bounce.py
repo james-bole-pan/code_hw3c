@@ -6,6 +6,7 @@ import matplotlib.animation as animation
 import pickle
 
 # Constants
+visualization_diameter = 5
 g = np.array([0.0, 0.0, -9.81])  # Gravity
 dt = 0.0001
 k = 1000.0  # Spring constant
@@ -14,7 +15,7 @@ damping = 1.00  # Damping constant
 mu_s = 0.0  # Static friction coefficient
 mu_k = 0.0  # Kinetic friction coefficient
 half_L0 = L0/2
-drop_height = 4.0
+drop_height = 5.0
 omega = 2*np.pi*2 # frequency of breathing
 times_of_simulation = 10000
 mutation_range_k = [1000, 1200]
@@ -179,7 +180,7 @@ def remove_random_mass(individual):
     individual.remove_mass(mass)
 
 def get_floor_tile():
-    floor_size = 3
+    floor_size = visualization_diameter
     return [[-floor_size, -floor_size, 0], 
             [floor_size, -floor_size, 0], 
             [floor_size, floor_size, 0], 
@@ -252,11 +253,22 @@ b_dict = I.b_dict
 c_dict = I.c_dict
 k_dict = I.k_dict
 
+springs_to_remove = []
+for spring in springs:
+    if spring.m1 not in masses or spring.m2 not in masses:
+        springs_to_remove.append(spring)
+
+for spring in springs_to_remove:
+    springs.remove(spring)
+    del a_dict[spring]
+    del b_dict[spring]
+    del c_dict[spring]
+    del k_dict[spring]
+
 #add drop height to all masses
 for mass in masses:
     mass.p[2] += drop_height
 
-print("a_dict: ", a_dict)
 # Visualization setup
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
@@ -271,9 +283,9 @@ shadows = [ax.plot([], [], [], 'k-')[0] for _ in range(len(springs))]
 floor_tile_collection = Poly3DCollection([get_floor_tile()], color='gray', alpha=0.5)
 ax.add_collection3d(floor_tile_collection)
 
-ax.set_xlim([-2, 2]) 
-ax.set_ylim([-2, 2])
-ax.set_zlim([0, 4])
+ax.set_xlim([-visualization_diameter, visualization_diameter]) 
+ax.set_ylim([-visualization_diameter, visualization_diameter])
+ax.set_zlim([0, 2*visualization_diameter])
 ax.set_xlabel('X')
 ax.set_ylabel('Y')  
 ax.set_zlabel('Z')
