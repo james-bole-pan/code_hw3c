@@ -1,6 +1,9 @@
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import matplotlib.animation as animation
+import pickle
 
 # Constants
 g = np.array([0.0, 0.0, -9.81])  # Gravity
@@ -11,16 +14,19 @@ damping = 0.75  # Damping constant
 mu_s = 1.0  # Static friction coefficient
 mu_k = 0.8  # Kinetic friction coefficient
 half_L0 = L0/2
-drop_height = 1.0
+drop_height = 2.0
 omega = 2*np.pi*2 # frequency of breathing
 times_of_simulation = 10000
 mutation_range_k = [1000, 1200]
-mutation_range_b = [0.2, 0.3]
+mutation_range_b = [0.05, 0.075]
 mutation_range_c = [0, 2*np.pi*0.1]
-mutation_probability = 0.2
-crossover_probability = 0.5
+mass_mutation_probability = 0.5
+spring_mutation_probability = 0.2
+cross_over_removal_rate = 0.5
 population_size = 2
 generations = 2
+new_mass_spring_num = 5
+mass_to_mutate = 3
 
 class Mass:
     def __init__(self, p, v, m=0.1):
@@ -117,6 +123,9 @@ class Individual:
         self.c_dict = {spring:0.0 for spring in springs}
         self.k_dict = {spring:k for spring in springs}
 
+    def set_a_dict(self, a_dict):
+        self.a_dict = a_dict
+
     def set_b_dict(self, b_dict):
         self.b_dict = b_dict
     
@@ -126,34 +135,48 @@ class Individual:
     def set_k_dict(self, k_dict):
         self.k_dict = k_dict
 
-def fitness(individual):
-    masses = individual.masses
-    springs = individual.springs
-    initial_center_of_mass = p_center_of_mass(masses)
-    for _ in range(times_of_simulation):
-        simulation_step(masses, springs, dt, individual.a_dict, individual.b_dict, individual.c_dict, individual.k_dict)
-    final_center_of_mass = p_center_of_mass(masses)
-    displacement = final_center_of_mass - initial_center_of_mass
-    speed = np.linalg.norm(displacement[:2]) / (times_of_simulation * dt) # only care about horizontal distance
-    return speed
+    def add_mass(self, mass):
+        self.masses.append(mass)
+    
+    def add_spring(self, spring):
+        self.springs.append(spring)
+        self.a_dict[spring] = spring.L0
+        self.b_dict[spring] = 0.0
+        self.c_dict[spring] = 0.0
+        self.k_dict[spring] = k
 
-def p_center_of_mass(masses):
-    return sum([mass.m * mass.p for mass in masses]) / sum([mass.m for mass in masses])
+    def remove_spring(self, spring):
+        self.springs.remove(spring)
+        del self.a_dict[spring]
+        del self.b_dict[spring]
+        del self.c_dict[spring]
+        del self.k_dict[spring]
 
-def get_cube_faces(masses):
-    return [
-        [masses[0].p, masses[1].p, masses[5].p, masses[4].p],  # Bottom face
-        [masses[2].p, masses[3].p, masses[7].p, masses[6].p],  # Top face
-        [masses[0].p, masses[1].p, masses[3].p, masses[2].p],  # Front face
-        [masses[0].p, masses[4].p, masses[6].p, masses[2].p],  # Left face
-        [masses[1].p, masses[5].p, masses[7].p, masses[3].p],   # Right face
-        [masses[6].p, masses[7].p, masses[11].p, masses[10].p],
-        [masses[7].p, masses[11].p, masses[9].p, masses[5].p],
-        [masses[5].p, masses[9].p, masses[8].p, masses[4].p],
-        [masses[4].p, masses[8].p, masses[10].p, masses[6].p],
-        [masses[9].p, masses[11].p, masses[10].p, masses[8].p],
-        [masses[6].p, masses[7].p, masses[5].p, masses[4].p]
-    ]
+    def remove_mass(self, mass):
+        self.masses.remove(mass)
+        springs_to_remove = []
+
+        for spring in self.springs:
+            if spring.m1 == mass or spring.m2 == mass:
+                springs_to_remove.append(spring)
+
+        for spring in springs_to_remove:
+            self.remove_spring(spring)
+
+def add_random_mass(individual):
+    # Add a random mass to the individual
+    new_mass = Mass(np.random.rand(3), np.random.rand(3))
+    individual.add_mass(new_mass)
+    random_masses = random.sample(individual.masses, new_mass_spring_num)
+    for mass in random_masses:
+        distance = np.linalg.norm(new_mass.p - mass.p)
+        new_spring = Spring(distance, k, new_mass, mass)
+        individual.add_spring(new_spring)
+
+def remove_random_mass(individual):
+    # Remove a random spring from the individual
+    mass = random.choice(individual.masses)
+    individual.remove_mass(mass)
 
 def get_floor_tile():
     floor_size = 2.5
@@ -162,6 +185,7 @@ def get_floor_tile():
             [floor_size, floor_size, 0], 
             [-floor_size, floor_size, 0]]
 
+t = 0
 def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
     global t
     t += dt
@@ -219,11 +243,17 @@ def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
             mass.v[2] = -damping * mass.v[2]  # Some damping on collision
 
 def mutation(individual):
+    for i in range(0, mass_to_mutate):
+        if random.random() < mass_mutation_probability:
+            add_random_mass(individual)
+        if random.random() < mass_mutation_probability:
+            remove_random_mass(individual)
+
     b_dict = individual.b_dict
     c_dict = individual.c_dict
     k_dict = individual.k_dict
     for spring in individual.springs:
-        if random.random() < mutation_probability:
+        if random.random() < spring_mutation_probability:
             b_dict[spring] = np.random.uniform(mutation_range_b[0], mutation_range_b[1])
             c_dict[spring] = np.random.uniform(mutation_range_c[0], mutation_range_c[1])
             k_dict[spring] = np.random.uniform(mutation_range_k[0], mutation_range_k[1])
@@ -232,37 +262,91 @@ def mutation(individual):
     individual.set_k_dict(k_dict)
     return individual
 
-def crossover(individual1, individual2, crossover_probability=0.5):
-    child1 = Individual()
-    child2 = Individual()
+def crossover(individual1, individual2):
+    # Combine masses and springs from both individuals
+    combined_masses = individual1.masses + individual2.masses
+    combined_springs = individual1.springs + individual2.springs
+    combined_a_dict = {**individual1.a_dict, **individual2.a_dict}
+    combined_b_dict = {**individual1.b_dict, **individual2.b_dict}
+    combined_c_dict = {**individual1.c_dict, **individual2.c_dict}
+    combined_k_dict = {**individual1.k_dict, **individual2.k_dict}
 
-    # It's assumed that both individuals have springs in the same order
-    # and represent the same physical connections.
-    num_springs = len(individual1.springs)
+    unique_masses = remove_duplicate_masses(combined_masses)
+
+    # Create a new individual with the combined and filtered attributes
+    new_individual = Individual()
+    new_individual.masses = unique_masses
     
-    for i in range(num_springs):
-        if random.random() < crossover_probability:
-            # Child 1 gets parameter from individual 2 and vice versa for child 2
-            child1.b_dict[child1.springs[i]] = individual2.b_dict[individual2.springs[i]]
-            child1.c_dict[child1.springs[i]] = individual2.c_dict[individual2.springs[i]]
-            child1.k_dict[child1.springs[i]] = individual2.k_dict[individual2.springs[i]]
-            
-            child2.b_dict[child2.springs[i]] = individual1.b_dict[individual1.springs[i]]
-            child2.c_dict[child2.springs[i]] = individual1.c_dict[individual1.springs[i]]
-            child2.k_dict[child2.springs[i]] = individual1.k_dict[individual1.springs[i]]
-        else:
-            # Child 1 gets parameter from individual 1 and vice versa for child 2
-            child1.b_dict[child1.springs[i]] = individual1.b_dict[individual1.springs[i]]
-            child1.c_dict[child1.springs[i]] = individual1.c_dict[individual1.springs[i]]
-            child1.k_dict[child1.springs[i]] = individual1.k_dict[individual1.springs[i]]
-            
-            child2.b_dict[child2.springs[i]] = individual2.b_dict[individual2.springs[i]]
-            child2.c_dict[child2.springs[i]] = individual2.c_dict[individual2.springs[i]]
-            child2.k_dict[child2.springs[i]] = individual2.k_dict[individual2.springs[i]]
+    new_springs = []
+    # add all springs that have both masses in the new individual
+    for spring in combined_springs:
+        for mass in unique_masses:
+            if np.array_equal(spring.m1.p, mass.p) or np.array_equal(spring.m2.p, mass.p):
+                new_springs.append(spring)
+                break
 
-    return child1, child2
+    print("before removal: ", len(new_springs))
+    # remove springs with duplicated starting and ending mass locations
+    positions = set()
+    unique_springs = []
+    for spring in new_springs:
+        pos_tuple = tuple(tuple(mass.p) for mass in [spring.m1, spring.m2])
+        if pos_tuple not in positions:
+            positions.add(pos_tuple)
+            unique_springs.append(spring)
 
-# create a population
+    for spring in unique_springs:
+        if spring.m1 not in unique_masses:
+            for mass in unique_masses:
+                if np.array_equal(spring.m1.p, mass.p):
+                    spring.m1 = mass
+                    break
+        if spring.m2 not in unique_masses:
+            for mass in unique_masses:
+                if np.array_equal(spring.m2.p, mass.p):
+                    spring.m2 = mass
+                    break
+
+    print("after removal: ", len(unique_springs))
+
+    new_individual.springs = unique_springs
+    new_a_dict = {}
+    new_b_dict = {}
+    new_c_dict = {}
+    new_k_dict = {}
+    for spring in unique_springs:
+        new_a_dict[spring] = combined_a_dict[spring]
+        new_b_dict[spring] = combined_b_dict[spring]
+        new_c_dict[spring] = combined_c_dict[spring]
+        new_k_dict[spring] = combined_k_dict[spring]
+    new_individual.set_a_dict(new_a_dict)
+    new_individual.set_b_dict(new_b_dict)
+    new_individual.set_c_dict(new_c_dict)
+    new_individual.set_k_dict(new_k_dict)
+
+    # randomly remove 50% of the masses
+    for mass in unique_masses:
+        if random.random() < cross_over_removal_rate:
+            new_individual.remove_mass(mass)
+    return new_individual
+
+def remove_duplicate_masses(masses):
+    unique_masses = []
+    positions = set()
+    for mass in masses:
+        pos_tuple = tuple(mass.p)
+        if pos_tuple not in positions:
+            positions.add(pos_tuple)
+            unique_masses.append(mass)
+    return unique_masses
+
+def find_mass(ref_mass, mass_list):
+    # Helper function to find a matching mass in the new list by position
+    for mass in mass_list:
+        if np.array_equal(ref_mass.p, mass.p):
+            return mass
+    return None
+
 population = [Individual() for _ in range(population_size)]
 
 for individual in population:
@@ -279,6 +363,20 @@ for individual in population:
     individual.set_c_dict(c_dict)
     individual.set_k_dict(k_dict)
 
+def fitness(individual):
+    masses = individual.masses
+    springs = individual.springs
+    initial_center_of_mass = p_center_of_mass(masses)
+    for _ in range(times_of_simulation):
+        simulation_step(masses, springs, dt, individual.a_dict, individual.b_dict, individual.c_dict, individual.k_dict)
+    final_center_of_mass = p_center_of_mass(masses)
+    displacement = final_center_of_mass - initial_center_of_mass
+    speed = np.linalg.norm(displacement[:2]) / (times_of_simulation * dt) # only care about horizontal distance
+    return speed
+
+def p_center_of_mass(masses):
+    return sum([mass.m * mass.p for mass in masses]) / sum([mass.m for mass in masses])
+
 t = 0
 
 fitness_history = []
@@ -287,19 +385,18 @@ max_fitness = max(fitnesses)
 fitness_history.append(max_fitness)
 best_individual = population[fitnesses.index(max_fitness)]
 
-with open("dot_plot_data.txt", "w") as f:
-    f.write("Trial \n")
-
 for i in range(generations):
     # select parents
     children = []
     while len(children) < population_size:
         parent1 = random.choices(population, weights=fitnesses)[0]
         parent2 = random.choices(population, weights=fitnesses)[0]
+
+        parent1 = mutation(parent1)
+        parent2 = mutation(parent2)
     
-        child1, child2 = crossover(parent1, parent2)
-        children.append(mutation(child1))
-        children.append(mutation(child2))
+        child = crossover(parent1, parent2)
+        children.append(child)
 
     # evaluate fitness
     fitnesses = [fitness(individual) for individual in population]
@@ -316,68 +413,79 @@ for i in range(generations):
 print("Best individual: ", best_individual)
 print("Best fitness: ", max_fitness)
 
-best_b_dict = best_individual.b_dict
-best_c_dict = best_individual.c_dict
-best_k_dict = best_individual.k_dict
-# save the best individual's parameters
-np.save("best_b_dict.npy", best_b_dict)
-np.save("best_c_dict.npy", best_c_dict)
-np.save("best_k_dict.npy", best_k_dict)
-'''
-# implement a random search
-population = [Individual() for _ in range(population_size)]
+with open("fitness_history.pkl", "wb") as f:
+    pickle.dump(fitness_history, f)
 
-for individual in population:
-    b_dict = {}
-    c_dict = {}
-    k_dict = {}
+with open("best_individual.pkl", "wb") as f:
+    pickle.dump(best_individual, f)
 
-    for spring in individual.springs:
-        b_dict[spring] = np.random.uniform(mutation_range_b[0], mutation_range_b[1])
-        c_dict[spring] = np.random.uniform(mutation_range_c[0], mutation_range_c[1])
-        k_dict[spring] = np.random.uniform(mutation_range_k[0], mutation_range_k[1])
+masses = best_individual.masses
+springs = best_individual.springs
+a_dict = best_individual.a_dict
+b_dict = best_individual.b_dict
+c_dict = best_individual.c_dict
+k_dict = best_individual.k_dict
 
-    individual.set_b_dict(b_dict)
-    individual.set_c_dict(c_dict)
-    individual.set_k_dict(k_dict)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
 
-t = 0
+# Initialize 8 points for the cube's vertices
+points = [ax.plot([], [], [], 'ro')[0] for _ in range(len(masses))]
 
-rs_fitness_history = []
-fitnesses = [fitness(individual) for individual in population]
-max_fitness = max(fitnesses)
-rs_fitness_history.append(max_fitness)
-best_individual = population[fitnesses.index(max_fitness)]
+# Initialize 12 lines for the springs
+lines = [ax.plot([], [], [], 'b-')[0] for _ in range(len(springs))] 
+shadows = [ax.plot([], [], [], 'k-')[0] for _ in range(len(springs))] 
 
-for i in range(generations):
-    new_population = [Individual() for _ in range(population_size)]
-    for individual in new_population:
-        b_dict = {}
-        c_dict = {}
-        k_dict = {}
+floor_tile_collection = Poly3DCollection([get_floor_tile()], color='gray', alpha=0.5)
+ax.add_collection3d(floor_tile_collection)
 
-        for spring in individual.springs:
-            b_dict[spring] = np.random.uniform(mutation_range_b[0], mutation_range_b[1])
-            c_dict[spring] = np.random.uniform(mutation_range_c[0], mutation_range_c[1])
-            k_dict[spring] = np.random.uniform(mutation_range_k[0], mutation_range_k[1])
+ax.set_xlim([-2, 2]) 
+ax.set_ylim([-2, 2])
+ax.set_zlim([0, 4])
+ax.set_xlabel('X')
+ax.set_ylabel('Y')  
+ax.set_zlabel('Z')
+ax.set_title('Dropping and Bouncing Cube in 3D')
 
-        individual.set_b_dict(b_dict)
-        individual.set_c_dict(c_dict)
-        individual.set_k_dict(k_dict)
-    fitnesses = [fitness(individual) for individual in new_population]
-    current_max_fitness = max(fitnesses)
-    print("RS generation ", i, "current max fitness: ", current_max_fitness)
-    current_best_individual = population[fitnesses.index(current_max_fitness)]
-    if current_max_fitness > max_fitness:
-        max_fitness = current_max_fitness
-        best_individual = current_best_individual
-    rs_fitness_history.append(max_fitness)
+def init():
+    for point in points:
+        point.set_data([], [])
+        point.set_3d_properties([])
+    for line in lines:
+        line.set_data([], [])
+        line.set_3d_properties([])
+    for shadow in shadows:
+        shadow.set_data([], [])
+        shadow.set_3d_properties([])
+    return points + lines + shadows
 
-#plt.plot(fitness_history, label="EA")
-plt.plot(rs_fitness_history, label="RS")
-plt.xlabel("Generation")
-plt.ylabel("Fitness (Speed of robot in m/s)")
-plt.title("Fitness over generations")
-plt.legend()
+def animate(i):
+    for _ in range(300):
+        simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict)
+    
+    for mass, point in zip(masses, points):
+        x, y, z = mass.p
+        point.set_data([x], [y])
+        point.set_3d_properties([z])  # Setting the Z value for 3D
+
+    # Update the spring lines
+    for spring, line in zip(springs, lines):
+        x_data = [spring.m1.p[0], spring.m2.p[0]]
+        y_data = [spring.m1.p[1], spring.m2.p[1]]
+        z_data = [spring.m1.p[2], spring.m2.p[2]]
+        line.set_data(x_data, y_data)
+        line.set_3d_properties(z_data)
+    
+    # Update the shadow lines
+    for spring, shadow in zip(springs, shadows):
+        x_data = [spring.m1.p[0], spring.m2.p[0]]
+        y_data = [spring.m1.p[1], spring.m2.p[1]]
+        z_data = [0, 0]
+        shadow.set_data(x_data, y_data)
+        shadow.set_3d_properties(z_data)
+        
+    return points + lines + shadows
+
+ani = animation.FuncAnimation(fig, animate, frames=1000, init_func=init, blit=False, interval=5)
+
 plt.show()
-'''
