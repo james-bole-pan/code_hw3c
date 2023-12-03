@@ -258,24 +258,6 @@ def mutation(individual):
     individual.set_k_dict(k_dict)
     return individual
 
-def crossover(individual1, individual2):
-    # Crossover the two individuals
-    b_dict1 = individual1.b_dict
-    c_dict1 = individual1.c_dict
-    k_dict1 = individual1.k_dict
-    b_dict2 = individual2.b_dict
-    c_dict2 = individual2.c_dict
-    k_dict2 = individual2.k_dict
-    for spring in individual1.springs:
-        if random.random() < crossover_probability:
-            b_dict1[spring] = b_dict2[spring]
-            c_dict1[spring] = c_dict2[spring]
-            k_dict1[spring] = k_dict2[spring]
-    individual1.set_b_dict(b_dict1)
-    individual1.set_c_dict(c_dict1)
-    individual1.set_k_dict(k_dict1)
-    return individual1
-
 I = Individual()
 
 b_dict = {}
