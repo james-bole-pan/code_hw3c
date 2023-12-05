@@ -24,8 +24,8 @@ mutation_range_c = [0, 2*np.pi*0.1]
 mass_mutation_probability = 0.2
 spring_mutation_probability = 0.2
 cross_over_removal_rate = 0.5
-population_size = 10
-generations = 15
+population_size = 3
+generations = 2
 new_mass_spring_num = 5
 mass_to_mutate = 3
 

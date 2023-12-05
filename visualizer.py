@@ -23,11 +23,11 @@ mutation_range_b = [0.2, 0.3]
 mutation_range_c = [0, 2*np.pi*0.1]
 mass_mutation_probability = 0.5
 spring_mutation_probability = 0.2
-cross_over_removal_rate = 0.5
+cross_over_removal_rate = 0.3
 population_size = 2
 generations = 2
-new_mass_spring_num = 5
-mass_to_mutate = 3
+new_mass_spring_num = 6
+mass_to_mutate = 6
 
 class Mass:
     def __init__(self, p, v, m=0.1):
@@ -243,7 +243,7 @@ def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
             mass.p[2] = 0
             mass.v[2] = -damping * mass.v[2]  # Some damping on collision
 
-with open("best_individual2.pkl", "rb") as f:
+with open("best_individual.pkl", "rb") as f:
     I = pickle.load(f)
 
 masses = I.masses
@@ -253,25 +253,6 @@ b_dict = I.b_dict
 c_dict = I.c_dict
 k_dict = I.k_dict
 
-'''
-springs_to_remove = []
-for spring in springs:
-    if spring.m1 not in masses or spring.m2 not in masses:
-        springs_to_remove.append(spring)
-
-print("# of springs to removing: ", len(springs_to_remove))
-for spring in springs_to_remove:
-    I.remove_spring(spring)
-
-#remove all masses not connected to any spring
-masses_to_remove = []
-for mass in masses:
-    if mass not in [spring.m1 for spring in springs] and mass not in [spring.m2 for spring in springs]:
-        masses_to_remove.append(mass)
-
-for mass in masses_to_remove:
-    I.remove_mass(mass)
-'''
 # Visualization setup
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')

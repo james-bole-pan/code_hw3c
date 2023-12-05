@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.animation as animation
 import pickle
+import copy
 
 # Constants
-visualization_diameter = 10
+visualization_diameter = 7
 g = np.array([0.0, 0.0, -9.81])  # Gravity
 dt = 0.0001
 k = 1000.0  # Spring constant
@@ -15,7 +16,7 @@ damping = 0.75  # Damping constant
 mu_s = 1.0  # Static friction coefficient
 mu_k = 0.8  # Kinetic friction coefficient
 half_L0 = L0/2
-drop_height = 3.0
+drop_height = 0.0
 omega = 2*np.pi*2 # frequency of breathing
 times_of_simulation = 10000
 mutation_range_k = [1000, 1200]
@@ -163,6 +164,7 @@ class Individual:
 
         for spring in springs_to_remove:
             self.remove_spring(spring)
+    
 
 def add_random_mass(individual):
     # Add a random mass to the individual
@@ -227,10 +229,8 @@ def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
         if F_n < 0:
             if F_H<=-mu_s*F_n:
                 mass.f[:2] = np.zeros(2)
-                print("static friction, ", mass.f)
             else:
                 mass.f[:2] += -abs(mu_k*F_n)*direction
-                print("kinetic friction, ", mass.f)
 
     # Update positions and velocities for each mass
     for mass in masses:
@@ -243,9 +243,10 @@ def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
             mass.p[2] = 0
             mass.v[2] = -damping * mass.v[2]  # Some damping on collision
 
-with open("best_individual.pkl", "rb") as f:
+with open("best_individual_1.pkl", "rb") as f:
     I = pickle.load(f)
 
+'''
 springs_to_remove = []
 for spring in I.springs:
     if spring.m1 not in I.masses or spring.m2 not in I.masses:
@@ -259,15 +260,30 @@ masses_to_remove = []
 for mass in I.masses:
     if mass not in [spring.m1 for spring in I.springs] and mass not in [spring.m2 for spring in I.springs]:
         masses_to_remove.append(mass)
+'''
 
-I2 = Individual()
-I3 = Individual()
-I4 = Individual()
+with open("best_individual_2.pkl", "rb") as f:
+    I2 = pickle.load(f)
+
+with open("best_individual_3.pkl", "rb") as f:
+    I3 = pickle.load(f)
+
+with open("best_individual_4.pkl", "rb") as f:
+    I4 = pickle.load(f)
+
 I5 = Individual()
-I6 = Individual()
-I7 = Individual()
-I8 = Individual()
-I9 = Individual()
+
+with open("best_individual_6.pkl", "rb") as f:
+    I6 = pickle.load(f)
+
+with open("best_individual_7.pkl", "rb") as f:
+    I7 = pickle.load(f)
+
+with open("best_individual_8.pkl", "rb") as f:
+    I8 = pickle.load(f)
+
+with open("best_individual_9.pkl", "rb") as f:
+    I9 = pickle.load(f)
 
 distance = 5.0
 for mass in I.masses:
@@ -322,7 +338,7 @@ ax.set_zlim([0, 2*visualization_diameter])
 ax.set_xlabel('X')
 ax.set_ylabel('Y')  
 ax.set_zlabel('Z')
-ax.set_title('Fastest Robot Moving')
+ax.set_title('Robot Zoo')
 
 def init():
     for point in points:
@@ -337,7 +353,7 @@ def init():
     return points + lines + shadows
 
 def animate(i):
-    for _ in range(300):
+    for _ in range(1000):
         simulation_step(all_masses, all_springs, dt, all_a_dict, all_b_dict, all_c_dict, all_k_dict)
     
     # Update the points and lines for both robots

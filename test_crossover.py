@@ -3,6 +3,8 @@ import random
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.animation as animation
+import pickle
+import copy
 
 # Constants
 g = np.array([0.0, 0.0, -9.81])  # Gravity
@@ -162,6 +164,24 @@ class Individual:
         for spring in springs_to_remove:
             self.remove_spring(spring)
 
+    
+    def get_fitness(self):
+        individual = copy.deepcopy(self)
+        masses = individual.masses
+        springs = individual.springs
+        initial_center_of_mass = p_center_of_mass(masses)
+        t = 0
+        for _ in range(times_of_simulation):
+            simulation_step(masses, springs, t, individual.a_dict, individual.b_dict, individual.c_dict, individual.k_dict)
+            t += dt
+        final_center_of_mass = p_center_of_mass(masses)
+        displacement = final_center_of_mass - initial_center_of_mass
+        speed = np.linalg.norm(displacement[:2]) / (times_of_simulation * dt) # only care about horizontal distance
+        return speed
+
+def p_center_of_mass(masses):
+    return sum([mass.m * mass.p for mass in masses]) / sum([mass.m for mass in masses]) +0.000001
+
 def add_random_mass(individual):
     # Add a random mass to the individual
     new_mass = Mass(np.random.rand(3), np.random.rand(3))
@@ -200,7 +220,7 @@ def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
         b = b_dict[spring]
         c = c_dict[spring]
         spring.k = k_dict[spring]
-        spring.L0 = a #+ b*np.sin(omega*t+c) 
+        spring.L0 = a + b*np.sin(omega*t+c) 
 
         delta_p = spring.m1.p - spring.m2.p
         delta_length = np.linalg.norm(delta_p)
@@ -368,6 +388,9 @@ I2 = population[1]
 I2 = mutation(I2)
 I = crossover(I1, I2)
 I = mutation(I)
+
+with open("best_individual.pkl", "wb") as f:
+    pickle.dump(I, f)
 
 masses = I.masses
 springs = I.springs
