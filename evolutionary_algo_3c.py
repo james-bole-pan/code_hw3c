@@ -408,13 +408,17 @@ for i in range(generations):
             if spring.m1 not in child.masses or spring.m2 not in child.masses:
                 springs_to_remove.append(spring)
 
-        print("# of springs to removing: ", len(springs_to_remove))
         for spring in springs_to_remove:
-            child.springs.remove(spring)
-            del child.a_dict[spring]
-            del child.b_dict[spring]
-            del child.c_dict[spring]
-            del child.k_dict[spring]
+            child.remove_spring(spring)
+
+        #remove all masses not connected to any spring
+        masses_to_remove = []
+        for mass in child.masses:
+            if mass not in [spring.m1 for spring in child.springs] and mass not in [spring.m2 for spring in child.springs]:
+                masses_to_remove.append(mass)
+
+        for mass in masses_to_remove:
+            child.remove_mass(mass)
         children.append(child)
     
     population = children

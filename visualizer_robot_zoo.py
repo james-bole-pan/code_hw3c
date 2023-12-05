@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 import pickle
 
 # Constants
-visualization_diameter = 3
+visualization_diameter = 10
 g = np.array([0.0, 0.0, -9.81])  # Gravity
 dt = 0.0001
 k = 1000.0  # Spring constant
@@ -243,45 +243,62 @@ def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
             mass.p[2] = 0
             mass.v[2] = -damping * mass.v[2]  # Some damping on collision
 
-with open("best_individual2.pkl", "rb") as f:
+with open("best_individual.pkl", "rb") as f:
     I = pickle.load(f)
 
-masses = I.masses
-springs = I.springs
-a_dict = I.a_dict
-b_dict = I.b_dict
-c_dict = I.c_dict
-k_dict = I.k_dict
+I = Individual()
+I2 = Individual()
+I3 = Individual()
+I4 = Individual()
+I5 = Individual()
+I6 = Individual()
+I7 = Individual()
+I8 = Individual()
+I9 = Individual()
 
-'''
-springs_to_remove = []
-for spring in springs:
-    if spring.m1 not in masses or spring.m2 not in masses:
-        springs_to_remove.append(spring)
+distance = 5.0
+for mass in I.masses:
+    mass.p[0] -= distance
+    mass.p[1] += distance
 
-print("# of springs to removing: ", len(springs_to_remove))
-for spring in springs_to_remove:
-    I.remove_spring(spring)
+for mass in I2.masses:
+    mass.p[1] += distance
 
-#remove all masses not connected to any spring
-masses_to_remove = []
-for mass in masses:
-    if mass not in [spring.m1 for spring in springs] and mass not in [spring.m2 for spring in springs]:
-        masses_to_remove.append(mass)
+for mass in I3.masses:
+    mass.p[0] += distance
+    mass.p[1] += distance
 
-for mass in masses_to_remove:
-    I.remove_mass(mass)
-'''
+for mass in I4.masses:
+    mass.p[0] -= distance
+
+for mass in I6.masses:
+    mass.p[0] += distance
+
+for mass in I7.masses:
+    mass.p[0] -= distance
+    mass.p[1] -= distance
+
+for mass in I8.masses:
+    mass.p[1] -= distance
+
+for mass in I9.masses:
+    mass.p[0] += distance
+    mass.p[1] -= distance
+
+all_masses = I.masses + I2.masses + I3.masses + I4.masses + I5.masses + I6.masses + I7.masses + I8.masses + I9.masses
+all_springs = I.springs + I2.springs + I3.springs + I4.springs + I5.springs + I6.springs + I7.springs + I8.springs + I9.springs
+all_a_dict = {**I.a_dict, **I2.a_dict, **I3.a_dict, **I4.a_dict, **I5.a_dict, **I6.a_dict, **I7.a_dict, **I8.a_dict, **I9.a_dict}
+all_b_dict = {**I.b_dict, **I2.b_dict, **I3.b_dict, **I4.b_dict, **I5.b_dict, **I6.b_dict, **I7.b_dict, **I8.b_dict, **I9.b_dict}
+all_c_dict = {**I.c_dict, **I2.c_dict, **I3.c_dict, **I4.c_dict, **I5.c_dict, **I6.c_dict, **I7.c_dict, **I8.c_dict, **I9.c_dict}
+all_k_dict = {**I.k_dict, **I2.k_dict, **I3.k_dict, **I4.k_dict, **I5.k_dict, **I6.k_dict, **I7.k_dict, **I8.k_dict, **I9.k_dict}
+
 # Visualization setup
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 
-# Initialize 8 points for the cube's vertices
-points = [ax.plot([], [], [], 'ro')[0] for _ in range(len(masses))]
-
-# Initialize 12 lines for the springs
-lines = [ax.plot([], [], [], 'b-')[0] for _ in range(len(springs))] 
-shadows = [ax.plot([], [], [], 'k-')[0] for _ in range(len(springs))] 
+points = [ax.plot([], [], [], 'ro')[0] for _ in range(len(all_masses))]
+lines = [ax.plot([], [], [], 'b-')[0] for _ in range(len(all_springs))]
+shadows = [ax.plot([], [], [], 'k-')[0] for _ in range(len(all_springs))]
 
 floor_tile_collection = Poly3DCollection([get_floor_tile()], color='gray', alpha=0.5)
 ax.add_collection3d(floor_tile_collection)
@@ -308,23 +325,22 @@ def init():
 
 def animate(i):
     for _ in range(300):
-        simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict)
+        simulation_step(all_masses, all_springs, dt, all_a_dict, all_b_dict, all_c_dict, all_k_dict)
     
-    for mass, point in zip(masses, points):
+    # Update the points and lines for both robots
+    for mass, point in zip(all_masses, points):
         x, y, z = mass.p
         point.set_data([x], [y])
         point.set_3d_properties([z])  # Setting the Z value for 3D
 
-    # Update the spring lines
-    for spring, line in zip(springs, lines):
+    for spring, line in zip(all_springs, lines):
         x_data = [spring.m1.p[0], spring.m2.p[0]]
         y_data = [spring.m1.p[1], spring.m2.p[1]]
         z_data = [spring.m1.p[2], spring.m2.p[2]]
         line.set_data(x_data, y_data)
         line.set_3d_properties(z_data)
-    
-    # Update the shadow lines
-    for spring, shadow in zip(springs, shadows):
+
+    for spring, shadow in zip(all_springs, shadows):
         x_data = [spring.m1.p[0], spring.m2.p[0]]
         y_data = [spring.m1.p[1], spring.m2.p[1]]
         z_data = [0, 0]
