@@ -246,7 +246,20 @@ def simulation_step(masses, springs, dt, a_dict, b_dict, c_dict, k_dict):
 with open("best_individual.pkl", "rb") as f:
     I = pickle.load(f)
 
-I = Individual()
+springs_to_remove = []
+for spring in I.springs:
+    if spring.m1 not in I.masses or spring.m2 not in I.masses:
+        springs_to_remove.append(spring)
+
+for spring in springs_to_remove:
+    I.remove_spring(spring)
+
+#remove all masses not connected to any spring
+masses_to_remove = []
+for mass in I.masses:
+    if mass not in [spring.m1 for spring in I.springs] and mass not in [spring.m2 for spring in I.springs]:
+        masses_to_remove.append(mass)
+
 I2 = Individual()
 I3 = Individual()
 I4 = Individual()
